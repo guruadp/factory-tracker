@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Operation Log</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-100 min-h-screen">
+    <main class="max-w-4xl mx-auto px-4 py-8">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h1 class="text-2xl font-semibold text-slate-900">New Operation Log</h1>
+        <p class="text-sm text-slate-600 mt-1">Quick entry for supervisors</p>
+
+        {% if error %}
+        <div class="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+          {{ success }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="/logs/new" class="mt-6 grid gap-4 md:grid-cols-2">
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">Work Order</span>
+            <select name="work_order_id" class="mt-1 w-full rounded-md border-slate-300" required>
+              <option value="">Select work order</option>
+              {% for item in work_orders %}
+              <option value="{{ item.id }}" {% if values.work_order_id == item.id %}selected{% endif %}>{{ item.id }} - {{ item.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">Station</span>
+            <select name="station_id" class="mt-1 w-full rounded-md border-slate-300" required>
+              <option value="">Select station</option>
+              {% for item in stations %}
+              <option value="{{ item.id }}" {% if values.station_id == item.id %}selected{% endif %}>{{ item.id }} - {{ item.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">Activity</span>
+            <select name="activity_id" class="mt-1 w-full rounded-md border-slate-300" required>
+              <option value="">Select activity</option>
+              {% for item in activities %}
+              <option value="{{ item.id }}" {% if values.activity_id == item.id %}selected{% endif %}>{{ item.id }} - {{ item.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">Operator</span>
+            <select name="operator_id" class="mt-1 w-full rounded-md border-slate-300" required>
+              <option value="">Select operator</option>
+              {% for item in operators %}
+              <option value="{{ item.id }}" {% if values.operator_id == item.id %}selected{% endif %}>{{ item.id }} - {{ item.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">Quantity</span>
+            <input
+              type="number"
+              min="1"
+              name="quantity"
+              class="mt-1 w-full rounded-md border-slate-300"
+              value="{{ values.quantity }}"
+              required
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">Duration (minutes)</span>
+            <input
+              type="number"
+              min="0"
+              name="duration_minutes"
+              class="mt-1 w-full rounded-md border-slate-300"
+              value="{{ values.duration_minutes }}"
+            />
+          </label>
+
+          <label class="block md:col-span-2">
+            <span class="text-sm font-medium text-slate-700">Performed At (UTC)</span>
+            <input
+              type="datetime-local"
+              name="performed_at"
+              class="mt-1 w-full rounded-md border-slate-300"
+              value="{{ values.performed_at }}"
+              required
+            />
+          </label>
+
+          <label class="block md:col-span-2">
+            <span class="text-sm font-medium text-slate-700">Notes</span>
+            <textarea name="notes" rows="3" class="mt-1 w-full rounded-md border-slate-300">{{ values.notes }}</textarea>
+          </label>
+
+          <div class="md:col-span-2">
+            <button
+              type="submit"
+              class="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Save Log
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </body>
+</html>

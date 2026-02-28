@@ -1,0 +1,7 @@
+activity_id,activity_name,station_id,is_primary
+A001,Assemble,S01,true
+A002,Inspect,S02,true
+A003,Pack,S03,true
+A004,Assemble-Rework,S01,false
+A005,Final Inspect,S02,false
+A006,Repack,S03,false

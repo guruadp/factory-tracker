@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Quick Log by Station{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <h1 class="text-2xl font-semibold">Quick Log by Station</h1>
+  <p class="text-slate-600 mt-1">Select a station to open ultra-fast log entry.</p>
+
+  <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+    {% for station in stations %}
+    <a
+      href="/stations/{{ station.station_id }}/quicklog"
+      class="block rounded-xl border border-slate-300 bg-slate-50 p-6 hover:bg-slate-100"
+    >
+      <div class="text-2xl font-semibold">{{ station.station_id }}</div>
+      <div class="mt-1 text-slate-700">{{ station.station_name }}</div>
+      {% if station.description %}
+      <div class="mt-2 text-sm text-slate-500">{{ station.description }}</div>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

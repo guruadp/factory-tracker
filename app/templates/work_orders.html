@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Work Orders{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold">Work Orders</h1>
+      <p class="text-slate-600 mt-1">Search and track WO status.</p>
+    </div>
+    <a href="/work-orders/new" class="rounded-md bg-slate-900 px-4 py-2 text-white">Create WO</a>
+  </div>
+
+  <form method="get" action="/work-orders" class="mt-5 grid md:grid-cols-4 gap-3">
+    <input name="q" value="{{ q }}" placeholder="Search wo_id or product" class="rounded-md border-slate-300 p-3" />
+
+    <select name="status" class="rounded-md border-slate-300 p-3">
+      <option value="">All Statuses</option>
+      {% for s in status_options %}
+      <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="view" class="rounded-md border-slate-300 p-3">
+      <option value="active" {% if view == 'active' %}selected{% endif %}>Active</option>
+      <option value="all" {% if view == 'all' %}selected{% endif %}>All</option>
+    </select>
+
+    <button type="submit" class="rounded-md border border-slate-300 p-3">Apply</button>
+  </form>
+
+  <div class="mt-6 overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">WO ID</th>
+          <th class="py-2">Product</th>
+          <th class="py-2">Planned Qty</th>
+          <th class="py-2">Status</th>
+          <th class="py-2">Due</th>
+          <th class="py-2">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for wo in work_orders %}
+        <tr class="border-b border-slate-100">
+          <td class="py-2"><a href="/work-orders/{{ wo.wo_id }}" class="text-slate-900 underline">{{ wo.wo_id }}</a></td>
+          <td class="py-2">{{ wo.product }}</td>
+          <td class="py-2">{{ wo.planned_qty }}</td>
+          <td class="py-2">{{ wo.status }}</td>
+          <td class="py-2">{{ wo.due_time if wo.due_time else 'N/A' }}</td>
+          <td class="py-2">{{ wo.created_at }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="py-4 text-slate-500">No work orders found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

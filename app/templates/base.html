@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Manufacturing WO Tracker{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-100 text-slate-900">
+    <header class="border-b border-slate-200 bg-white">
+      <nav class="max-w-4xl mx-auto px-6 py-3 flex flex-wrap gap-2 text-sm">
+        <a href="/" class="rounded-md border border-slate-300 px-3 py-1">Home</a>
+        <a href="/stations" class="rounded-md border border-slate-300 px-3 py-1">Quick Log</a>
+        <a href="/work-orders" class="rounded-md border border-slate-300 px-3 py-1">Work Orders</a>
+        <a href="/dashboard/stations" class="rounded-md border border-slate-300 px-3 py-1">Dashboards</a>
+      </nav>
+    </header>
+    <main class="max-w-4xl mx-auto p-6">{% block content %}{% endblock %}</main>
+  </body>
+</html>

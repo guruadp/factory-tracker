@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Create Work Order{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <h1 class="text-2xl font-semibold">Create Work Order</h1>
+  <p class="text-slate-600 mt-1">Add a new WO record (append-only).</p>
+
+  {% if form_error %}
+  <div class="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-red-700">{{ form_error }}</div>
+  {% endif %}
+
+  <form method="post" action="/work-orders/new" class="mt-6 space-y-4">
+    <div>
+      <label class="block text-sm font-medium text-slate-700">WO ID</label>
+      <input name="wo_id" value="{{ values.wo_id }}" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" required />
+      {% for err in errors.get('wo_id', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700">Product</label>
+      <input name="product" value="{{ values.product }}" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" required />
+      {% for err in errors.get('product', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Planned Qty</label>
+        <input type="number" min="1" name="planned_qty" value="{{ values.planned_qty }}" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" required />
+        {% for err in errors.get('planned_qty', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Status</label>
+        <select name="status" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg">
+          {% for s in status_options %}
+          <option value="{{ s }}" {% if values.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Release Time</label>
+        <input type="datetime-local" name="release_time" value="{{ values.release_time }}" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" />
+        {% for err in errors.get('release_time', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Due Time</label>
+        <input type="datetime-local" name="due_time" value="{{ values.due_time }}" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" />
+        {% for err in errors.get('due_time', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
+      </div>
+    </div>
+
+    {% for err in errors.get('__all__', []) %}<p class="text-sm text-red-600">{{ err }}</p>{% endfor %}
+
+    <div class="flex gap-3">
+      <button type="submit" class="rounded-md bg-slate-900 text-white px-5 py-3 text-lg">Create WO</button>
+      <a href="/work-orders" class="rounded-md border border-slate-300 px-5 py-3">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

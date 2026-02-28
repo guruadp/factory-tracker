@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Log Saved{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-emerald-200 rounded-xl shadow-sm p-6">
+  <h1 class="text-2xl font-semibold text-emerald-800">Operation Log Saved</h1>
+  <p class="text-slate-600 mt-1">Log ID: <span class="font-mono">{{ log.log_id }}</span></p>
+
+  <dl class="mt-6 grid md:grid-cols-2 gap-3 text-sm">
+    <div class="rounded-md border border-slate-200 p-3"><strong>Station:</strong> {{ log.station_id }} - {{ station_name }}</div>
+    <div class="rounded-md border border-slate-200 p-3"><strong>WO:</strong> {{ log.wo_id }}</div>
+    <div class="rounded-md border border-slate-200 p-3"><strong>Activity:</strong> {{ log.activity_id }} - {{ activity_name }}</div>
+    <div class="rounded-md border border-slate-200 p-3"><strong>Operator:</strong> {{ log.operator_id }} - {{ operator_name }}</div>
+    <div class="rounded-md border border-slate-200 p-3"><strong>Start:</strong> {{ log.start_time }}</div>
+    <div class="rounded-md border border-slate-200 p-3"><strong>End:</strong> {{ log.end_time }}</div>
+    <div class="rounded-md border border-slate-200 p-3"><strong>Qty (Good/Rework/Reject):</strong> {{ log.qty_good }} / {{ log.qty_rework }} / {{ log.qty_reject }}</div>
+    <div class="rounded-md border border-slate-200 p-3"><strong>Operators Count:</strong> {{ log.num_operators }}</div>
+  </dl>
+
+  <div class="mt-6 flex flex-wrap gap-3">
+    <a href="/logs/new?station_id={{ log.station_id }}" class="rounded-md bg-slate-900 text-white px-4 py-2">Add another log for same station</a>
+    <a href="/" class="rounded-md border border-slate-300 px-4 py-2">Home</a>
+  </div>
+</section>
+{% endblock %}

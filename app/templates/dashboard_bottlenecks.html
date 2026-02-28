@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Bottleneck Ranking{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <h1 class="text-2xl font-semibold">Bottleneck Ranking</h1>
+  <p class="text-slate-600 mt-1">Top stations by selected bottleneck metric.</p>
+
+  <form method="get" action="/dashboard/bottlenecks" class="mt-5 grid md:grid-cols-5 gap-3 items-end">
+    <label class="block">
+      <span class="text-sm text-slate-700">Date</span>
+      <input type="date" name="date" value="{{ date }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Metric</span>
+      <select name="metric" class="mt-1 w-full rounded-md border-slate-300 p-2">
+        <option value="processing" {% if metric == 'processing' %}selected{% endif %}>Processing</option>
+        <option value="wip" {% if metric == 'wip' %}selected{% endif %}>WIP</option>
+        <option value="stale" {% if metric == 'stale' %}selected{% endif %}>Stale</option>
+        <option value="rejects" {% if metric == 'rejects' %}selected{% endif %}>Rejects</option>
+      </select>
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Window Hours</span>
+      <input type="number" min="1" name="window_hours" value="{{ window_hours }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Stale Hours</span>
+      <input type="number" min="1" name="stale_hours" value="{{ stale_hours }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <button type="submit" class="rounded-md border border-slate-300 p-2">Apply</button>
+  </form>
+
+  <p class="mt-4 text-sm text-slate-600">{{ explanation }}</p>
+
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">Rank</th>
+          <th class="py-2">Station</th>
+          <th class="py-2">Processing Min</th>
+          <th class="py-2">WIP</th>
+          <th class="py-2">Stale WIP</th>
+          <th class="py-2">Reject Qty</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in ranked %}
+        <tr class="border-b border-slate-100">
+          <td class="py-2">{{ loop.index }}</td>
+          <td class="py-2"><a class="underline" href="/dashboard/stations/{{ row.station_id }}?date={{ date }}&window_hours={{ window_hours }}&stale_hours={{ stale_hours }}">{{ row.station_id }} - {{ row.station_name }}</a></td>
+          <td class="py-2">{{ '%.2f'|format(row.total_reported_processing_minutes_today) }}</td>
+          <td class="py-2">{{ row.wip_count }}</td>
+          <td class="py-2">{{ row.stale_wip_count }}</td>
+          <td class="py-2">{{ row.qty_reject_today }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="py-4 text-slate-500">No data for selected date.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

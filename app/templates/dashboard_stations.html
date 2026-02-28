@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Station Dashboard{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold">Station Overview</h1>
+      <p class="text-slate-600 mt-1">Daily output, cycle time, WIP, and stale WIP by station.</p>
+    </div>
+    <a href="/exports/daily?date={{ date }}" class="rounded-md bg-slate-900 px-4 py-2 text-white">Export Daily CSV</a>
+  </div>
+
+  <form method="get" action="/dashboard/stations" class="mt-5 grid md:grid-cols-4 gap-3 items-end">
+    <label class="block">
+      <span class="text-sm text-slate-700">Date</span>
+      <input id="dashboard-date" type="date" name="date" value="{{ date }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Window Hours</span>
+      <input type="number" min="1" name="window_hours" value="{{ window_hours }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Stale Hours</span>
+      <input type="number" min="1" name="stale_hours" value="{{ stale_hours }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <button type="submit" class="rounded-md border border-slate-300 p-2">Apply</button>
+  </form>
+
+  <section class="mt-6">
+    <h2 class="text-xl font-semibold">Visual Summary</h2>
+    <div class="mt-4 grid md:grid-cols-3 gap-4">
+      <div class="rounded-lg border border-slate-200 p-3">
+        <h3 class="text-sm font-medium mb-2">WO Status</h3>
+        <p id="wo-status-state" class="text-xs text-slate-500">Loading...</p>
+        <canvas id="woStatusChart" class="mt-2"></canvas>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 p-3">
+        <h3 class="text-sm font-medium mb-2">Rejects vs Rework by Station</h3>
+        <p id="rejects-rework-state" class="text-xs text-slate-500">Loading...</p>
+        <canvas id="rejectsReworkChart" class="mt-2"></canvas>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 p-3">
+        <h3 class="text-sm font-medium mb-2">Processing Minutes by Station</h3>
+        <p id="bottlenecks-state" class="text-xs text-slate-500">Loading...</p>
+        <canvas id="bottlenecksChart" class="mt-2"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <div class="mt-6 overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">Station</th>
+          <th class="py-2">Logs</th>
+          <th class="py-2">Good</th>
+          <th class="py-2">Rework</th>
+          <th class="py-2">Reject</th>
+          <th class="py-2">Processing Min</th>
+          <th class="py-2">Avg Cycle Min</th>
+          <th class="py-2">WIP</th>
+          <th class="py-2">Stale WIP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in metrics %}
+        <tr class="border-b border-slate-100">
+          <td class="py-2"><a class="underline" href="/dashboard/stations/{{ row.station_id }}?date={{ date }}&window_hours={{ window_hours }}&stale_hours={{ stale_hours }}">{{ row.station_id }} - {{ row.station_name }}</a></td>
+          <td class="py-2">{{ row.logs_count_today }}</td>
+          <td class="py-2">{{ row.qty_good_today }}</td>
+          <td class="py-2">{{ row.qty_rework_today }}</td>
+          <td class="py-2">{{ row.qty_reject_today }}</td>
+          <td class="py-2">{{ '%.2f'|format(row.total_reported_processing_minutes_today) }}</td>
+          <td class="py-2">{{ '%.2f'|format(row.avg_cycle_minutes_today) }}</td>
+          <td class="py-2"><span class="inline-flex rounded-full bg-slate-100 px-2 py-1">{{ row.wip_count }}</span></td>
+          <td class="py-2"><span class="inline-flex rounded-full bg-amber-100 px-2 py-1">{{ row.stale_wip_count }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function () {
+    const dateValue = document.getElementById("dashboard-date")?.value || "";
+
+    const setState = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    const fetchJson = async (url, stateId) => {
+      try {
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error("bad status");
+        setState(stateId, "");
+        return await res.json();
+      } catch (_err) {
+        setState(stateId, "Chart unavailable");
+        return null;
+      }
+    };
+
+    const init = async () => {
+      const q = dateValue ? `?date=${encodeURIComponent(dateValue)}` : "";
+
+      const woData = await fetchJson(`/api/charts/wo-status${q}`, "wo-status-state");
+      if (woData) {
+        new Chart(document.getElementById("woStatusChart"), {
+          type: "doughnut",
+          data: {
+            labels: woData.labels,
+            datasets: [{ data: woData.values }],
+          },
+          options: { responsive: true, maintainAspectRatio: false },
+        });
+      }
+
+      const rrData = await fetchJson(`/api/charts/rejects-rework${q}`, "rejects-rework-state");
+      if (rrData) {
+        new Chart(document.getElementById("rejectsReworkChart"), {
+          type: "bar",
+          data: {
+            labels: rrData.labels,
+            datasets: [
+              { label: "Rejects", data: rrData.rejects },
+              { label: "Rework", data: rrData.rework },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { stacked: true }, y: { stacked: true } },
+          },
+        });
+      }
+
+      const bData = await fetchJson(`/api/charts/bottlenecks${q}`, "bottlenecks-state");
+      if (bData) {
+        new Chart(document.getElementById("bottlenecksChart"), {
+          type: "bar",
+          data: {
+            labels: bData.labels,
+            datasets: [{ label: "Processing Minutes", data: bData.processing_minutes }],
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+          },
+        });
+      }
+    };
+
+    init();
+  })();
+</script>
+<style>
+  #woStatusChart,
+  #rejectsReworkChart,
+  #bottlenecksChart {
+    height: 240px !important;
+  }
+</style>
+{% endblock %}

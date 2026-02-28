@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Station {{ station.station_id }} Dashboard{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold">{{ station.station_id }} - {{ station.station_name }}</h1>
+      <p class="text-slate-600 mt-1">Station detail dashboard</p>
+    </div>
+    <a href="/dashboard/stations?date={{ date }}&window_hours={{ window_hours }}&stale_hours={{ stale_hours }}" class="rounded-md border border-slate-300 px-4 py-2">Back to Overview</a>
+  </div>
+
+  <form method="get" action="/dashboard/stations/{{ station.station_id }}" class="mt-5 grid md:grid-cols-4 gap-3 items-end">
+    <label class="block">
+      <span class="text-sm text-slate-700">Date</span>
+      <input type="date" name="date" value="{{ date }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Window Hours</span>
+      <input type="number" min="1" name="window_hours" value="{{ window_hours }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Stale Hours</span>
+      <input type="number" min="1" name="stale_hours" value="{{ stale_hours }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <button type="submit" class="rounded-md border border-slate-300 p-2">Apply</button>
+  </form>
+
+  <div class="mt-6 grid md:grid-cols-4 gap-3 text-sm">
+    <div class="rounded-lg border border-slate-200 p-3">Logs: <strong>{{ metrics.logs_count_today }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Good: <strong>{{ metrics.qty_good_today }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Rework/Reject: <strong>{{ metrics.qty_rework_today }}/{{ metrics.qty_reject_today }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">WIP/Stale: <strong>{{ metrics.wip_count }}/{{ metrics.stale_wip_count }}</strong></div>
+  </div>
+</section>
+
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mt-6">
+  <h2 class="text-xl font-semibold">Active WOs</h2>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">WO</th>
+          <th class="py-2">Product</th>
+          <th class="py-2">Last Activity</th>
+          <th class="py-2">Last Update</th>
+          <th class="py-2">Supervisor</th>
+          <th class="py-2">Good Today</th>
+          <th class="py-2">Stale</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in active_wos %}
+        <tr class="border-b border-slate-100">
+          <td class="py-2"><a class="underline" href="/work-orders/{{ row.wo_id }}">{{ row.wo_id }}</a></td>
+          <td class="py-2">{{ row.product }}</td>
+          <td class="py-2">{{ row.last_activity }}</td>
+          <td class="py-2">{{ row.last_update_display }}</td>
+          <td class="py-2">{{ row.last_supervisor }}</td>
+          <td class="py-2">{{ row.qty_good_total_at_station_today }}</td>
+          <td class="py-2">{{ 'Yes' if row.stale_flag else 'No' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="py-4 text-slate-500">No active WOs in selected window.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mt-6">
+  <h2 class="text-xl font-semibold">Reject/Rework Reasons</h2>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">Reason</th>
+          <th class="py-2">Count</th>
+          <th class="py-2">Qty Rework</th>
+          <th class="py-2">Qty Reject</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in reasons %}
+        <tr class="border-b border-slate-100">
+          <td class="py-2">{{ row.reason_code }}</td>
+          <td class="py-2">{{ row.count }}</td>
+          <td class="py-2">{{ row.qty_rework }}</td>
+          <td class="py-2">{{ row.qty_reject }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="py-4 text-slate-500">No reject/rework events on selected date.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mt-6">
+  <h2 class="text-xl font-semibold">Recent Logs (Last 50)</h2>
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">Created</th>
+          <th class="py-2">WO</th>
+          <th class="py-2">Activity</th>
+          <th class="py-2">Supervisor</th>
+          <th class="py-2">Good</th>
+          <th class="py-2">Rework</th>
+          <th class="py-2">Reject</th>
+          <th class="py-2">Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent_logs %}
+        <tr class="border-b border-slate-100">
+          <td class="py-2">{{ row.timestamp_created }}</td>
+          <td class="py-2"><a class="underline" href="/work-orders/{{ row.wo_id }}">{{ row.wo_id }}</a></td>
+          <td class="py-2">{{ row.activity_id }}</td>
+          <td class="py-2">{{ row.supervisor }}</td>
+          <td class="py-2">{{ row.qty_good }}</td>
+          <td class="py-2">{{ row.qty_rework }}</td>
+          <td class="py-2">{{ row.qty_reject }}</td>
+          <td class="py-2">{{ row.reason_code if row.reason_code else 'N/A' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="py-4 text-slate-500">No logs for this station.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,4 @@
+station_id,station_name,description
+S01,Assembly,Primary assembly station
+S02,Inspection,Quality inspection station
+S03,Packing,Final packaging

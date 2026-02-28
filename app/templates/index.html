@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}System Status{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <h1 class="text-2xl font-semibold">System OK</h1>
+  <p class="text-slate-600 mt-1">CSV storage initialized and available.</p>
+  <div class="mt-4">
+    <a href="/logs/new" class="inline-flex rounded-md bg-slate-900 px-4 py-2 text-white">New Operation Log</a>
+    <a href="/stations" class="inline-flex rounded-md border border-slate-300 px-4 py-2 ml-2">Quick Log</a>
+    <a href="/work-orders" class="inline-flex rounded-md border border-slate-300 px-4 py-2 ml-2">Work Orders</a>
+    <a href="/dashboard/stations" class="inline-flex rounded-md border border-slate-300 px-4 py-2 ml-2">Dashboards</a>
+  </div>
+
+  <div class="mt-6 grid sm:grid-cols-2 gap-3 text-sm">
+    <div class="rounded-lg border border-slate-200 p-3">Stations: <strong>{{ stations_count }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Activities: <strong>{{ activities_count }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Operators: <strong>{{ operators_count }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Work Orders: <strong>{{ work_orders_count }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3 sm:col-span-2">Operation Logs: <strong>{{ logs_count }}</strong></div>
+  </div>
+</section>
+
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mt-6">
+  <div class="flex items-center justify-between gap-3">
+    <h2 class="text-xl font-semibold">Top 3 Bottleneck Stations Today</h2>
+    <a href="/dashboard/bottlenecks?metric=processing&date={{ today_date }}" class="text-sm underline">View Full Ranking</a>
+  </div>
+  {% if top_bottlenecks %}
+  <div class="mt-4 grid md:grid-cols-3 gap-3">
+    {% for row in top_bottlenecks %}
+    <a href="/dashboard/stations/{{ row.station_id }}?date={{ today_date }}" class="rounded-lg border border-slate-200 p-3 block">
+      <div class="text-sm text-slate-500">#{{ loop.index }}</div>
+      <div class="font-medium">{{ row.station_id }} - {{ row.station_name }}</div>
+      <div class="text-sm text-slate-600 mt-1">Processing: {{ '%.2f'|format(row.total_reported_processing_minutes_today) }} min</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="mt-3 text-slate-600">No bottleneck data yet for today.</p>
+  {% endif %}
+</section>
+
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mt-6">
+  <h2 class="text-xl font-semibold">Recent Logs</h2>
+  {% if recent_logs %}
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">Created</th>
+          <th class="py-2">Station</th>
+          <th class="py-2">WO</th>
+          <th class="py-2">Activity</th>
+          <th class="py-2">Operator</th>
+          <th class="py-2">Qty G/R/Rj</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in recent_logs %}
+        <tr class="border-b border-slate-100">
+          <td class="py-2">{{ log.timestamp_created }}</td>
+          <td class="py-2">{{ log.station_id }}</td>
+          <td class="py-2">{{ log.wo_id }}</td>
+          <td class="py-2">{{ log.activity_id }}</td>
+          <td class="py-2">{{ log.operator_id }}</td>
+          <td class="py-2">{{ log.qty_good }}/{{ log.qty_rework }}/{{ log.qty_reject }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="mt-3 text-slate-600">No logs yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
