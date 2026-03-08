@@ -60,6 +60,114 @@ def _migrate_activities_add_is_primary(path: Path) -> None:
             writer.writerow(row)
 
 
+def _migrate_work_orders_add_process_stations(path: Path) -> None:
+    if not path.exists() or path.stat().st_size == 0:
+        return
+
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        existing_headers = reader.fieldnames or []
+        rows = [dict(row) for row in reader]
+
+    if "process_stations" in existing_headers:
+        return
+
+    headers = [
+        "wo_id",
+        "product",
+        "planned_qty",
+        "status",
+        "release_time",
+        "due_time",
+        "process_stations",
+        "created_at",
+    ]
+    migrated_rows = []
+    for row in rows:
+        migrated_rows.append(
+            {
+                "wo_id": row.get("wo_id", ""),
+                "product": row.get("product", ""),
+                "planned_qty": row.get("planned_qty", ""),
+                "status": row.get("status", ""),
+                "release_time": row.get("release_time", ""),
+                "due_time": row.get("due_time", ""),
+                "process_stations": "",
+                "created_at": row.get("created_at", ""),
+            }
+        )
+
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=headers)
+        writer.writeheader()
+        for row in migrated_rows:
+            writer.writerow(row)
+
+
+def _migrate_operation_logs_add_activity_description(path: Path) -> None:
+    if not path.exists() or path.stat().st_size == 0:
+        return
+
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        existing_headers = reader.fieldnames or []
+        rows = [dict(row) for row in reader]
+
+    if "activity_description" in existing_headers:
+        return
+
+    headers = [
+        "log_id",
+        "timestamp_created",
+        "supervisor",
+        "station_id",
+        "wo_id",
+        "activity_id",
+        "operator_id",
+        "start_time",
+        "end_time",
+        "qty_good",
+        "qty_rework",
+        "qty_reject",
+        "num_operators",
+        "reason_code",
+        "activity_description",
+        "remarks",
+        "supervisor_checkin_time",
+        "supervisor_checkout_time",
+    ]
+    migrated_rows = []
+    for row in rows:
+        migrated_rows.append(
+            {
+                "log_id": row.get("log_id", ""),
+                "timestamp_created": row.get("timestamp_created", ""),
+                "supervisor": row.get("supervisor", ""),
+                "station_id": row.get("station_id", ""),
+                "wo_id": row.get("wo_id", ""),
+                "activity_id": row.get("activity_id", ""),
+                "operator_id": row.get("operator_id", ""),
+                "start_time": row.get("start_time", ""),
+                "end_time": row.get("end_time", ""),
+                "qty_good": row.get("qty_good", ""),
+                "qty_rework": row.get("qty_rework", ""),
+                "qty_reject": row.get("qty_reject", ""),
+                "num_operators": row.get("num_operators", ""),
+                "reason_code": row.get("reason_code", ""),
+                "activity_description": "",
+                "remarks": row.get("remarks", ""),
+                "supervisor_checkin_time": row.get("supervisor_checkin_time", ""),
+                "supervisor_checkout_time": row.get("supervisor_checkout_time", ""),
+            }
+        )
+
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=headers)
+        writer.writeheader()
+        for row in migrated_rows:
+            writer.writerow(row)
+
+
 def initialize_data_files() -> None:
     now = _iso_now()
     activities_path = DATA_DIR / "activities.csv"
@@ -97,7 +205,7 @@ def initialize_data_files() -> None:
 
     _ensure_csv(
         DATA_DIR / "work_orders.csv",
-        ["wo_id", "product", "planned_qty", "status", "release_time", "due_time", "created_at"],
+        ["wo_id", "product", "planned_qty", "status", "release_time", "due_time", "process_stations", "created_at"],
         [
             {
                 "wo_id": "WO-2026-0001",
@@ -106,6 +214,7 @@ def initialize_data_files() -> None:
                 "status": "In Progress",
                 "release_time": now,
                 "due_time": now,
+                "process_stations": "S01,S02,S03",
                 "created_at": now,
             },
             {
@@ -115,10 +224,12 @@ def initialize_data_files() -> None:
                 "status": "Not Started",
                 "release_time": "",
                 "due_time": "",
+                "process_stations": "S01,S02,S03",
                 "created_at": now,
             },
         ],
     )
+    _migrate_work_orders_add_process_stations(DATA_DIR / "work_orders.csv")
 
     _ensure_csv(
         OPERATION_LOGS_FILE,
@@ -137,6 +248,7 @@ def initialize_data_files() -> None:
             "qty_reject",
             "num_operators",
             "reason_code",
+            "activity_description",
             "remarks",
             "supervisor_checkin_time",
             "supervisor_checkout_time",
@@ -157,12 +269,14 @@ def initialize_data_files() -> None:
                 "qty_reject": "0",
                 "num_operators": "1",
                 "reason_code": "",
+                "activity_description": "",
                 "remarks": "Sample seeded log",
                 "supervisor_checkin_time": now,
                 "supervisor_checkout_time": now,
             }
         ],
     )
+    _migrate_operation_logs_add_activity_description(OPERATION_LOGS_FILE)
 
 
 def main() -> None:

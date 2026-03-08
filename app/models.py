@@ -32,6 +32,7 @@ class WorkOrderRow(BaseModel):
     status: Literal["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"]
     release_time: Optional[datetime] = None
     due_time: Optional[datetime] = None
+    process_stations: str = ""
     created_at: datetime
 
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -57,6 +58,7 @@ class WorkOrderCreate(BaseModel):
     status: Literal["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"] = "Not Started"
     release_time: Optional[datetime] = None
     due_time: Optional[datetime] = None
+    process_stations: str = ""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -96,6 +98,7 @@ class OperationLogCreate(BaseModel):
     qty_reject: int = Field(..., ge=0)
     num_operators: int = Field(..., ge=1)
     reason_code: str = ""
+    activity_description: str = ""
     remarks: str = ""
     supervisor_checkin_time: datetime
     supervisor_checkout_time: Optional[datetime] = None
@@ -146,6 +149,7 @@ class OperationLogRow(BaseModel):
     qty_reject: int
     num_operators: int
     reason_code: str = ""
+    activity_description: str = ""
     remarks: str = ""
     supervisor_checkin_time: datetime
     supervisor_checkout_time: datetime

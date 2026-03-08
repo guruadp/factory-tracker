@@ -39,6 +39,7 @@ WORK_ORDER_HEADERS = [
     "status",
     "release_time",
     "due_time",
+    "process_stations",
     "created_at",
 ]
 
@@ -57,6 +58,7 @@ OPERATION_LOG_HEADERS = [
     "qty_reject",
     "num_operators",
     "reason_code",
+    "activity_description",
     "remarks",
     "supervisor_checkin_time",
     "supervisor_checkout_time",
@@ -140,6 +142,7 @@ class CSVStorage:
             "status": row.status,
             "release_time": "" if row.release_time is None else row.release_time.astimezone(TIMEZONE).isoformat(),
             "due_time": "" if row.due_time is None else row.due_time.astimezone(TIMEZONE).isoformat(),
+            "process_stations": row.process_stations,
             "created_at": row.created_at.astimezone(TIMEZONE).isoformat(),
         }
         self._append_csv_row(WORK_ORDERS_FILE, csv_row, headers=WORK_ORDER_HEADERS)
@@ -166,6 +169,10 @@ class CSVStorage:
         station_key = self._norm(station_id)
         filtered = [row for row in rows if self._norm(row["station_id"]) == station_key]
         return sorted(filtered, key=lambda row: row["operator_id"])
+
+    def get_operators(self) -> list[dict[str, Any]]:
+        rows = self.read_master_table("operators")
+        return sorted(rows, key=lambda row: row["operator_id"])
 
     def get_operators_by_station(self, station_id: str) -> list[dict[str, Any]]:
         return self.get_operators_for_station(station_id)
@@ -311,13 +318,11 @@ class CSVStorage:
             operator = operators.get(self._norm(operator_id))
             if operator is None:
                 raise StorageError(f"operator_id '{operator_id}' does not exist")
-            if self._norm(operator["station_id"]) != station_key:
-                raise StorageError("operator_id does not match station_id")
         else:
-            station_operators = self.get_operators_for_station(payload.station_id)
-            if not station_operators:
-                raise StorageError("operator_id blank and no operators found for station")
-            operator_id = station_operators[0]["operator_id"]
+            all_operators = self.get_operators()
+            if not all_operators:
+                raise StorageError("operator_id blank and no operators found")
+            operator_id = all_operators[0]["operator_id"]
 
         row = {
             "log_id": str(uuid4()),
@@ -334,6 +339,7 @@ class CSVStorage:
             "qty_reject": str(payload.qty_reject),
             "num_operators": str(payload.num_operators),
             "reason_code": payload.reason_code,
+            "activity_description": payload.activity_description,
             "remarks": payload.remarks,
             "supervisor_checkin_time": payload.supervisor_checkin_time.astimezone(TIMEZONE).isoformat(),
             "supervisor_checkout_time": datetime.now(TIMEZONE).isoformat(),

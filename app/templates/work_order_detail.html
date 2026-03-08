@@ -25,14 +25,6 @@
     <div class="rounded-lg border border-slate-200 p-3">Processing Time: <strong>{{ metrics.processing_display }}</strong></div>
   </div>
 
-  <div class="mt-6">
-    <h2 class="text-lg font-semibold">Quick Log at Station</h2>
-    <div class="mt-2 flex flex-wrap gap-2">
-      {% for station in stations %}
-      <a href="/stations/{{ station.station_id }}/quicklog" class="rounded-md border border-slate-300 px-3 py-2 text-sm">{{ station.station_id }}</a>
-      {% endfor %}
-    </div>
-  </div>
 </section>
 
 <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mt-6">

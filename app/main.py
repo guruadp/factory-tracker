@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
@@ -17,8 +18,11 @@ from app.analytics import (
     count_work_orders_by_status,
     compute_all_stations_metrics,
     compute_bottlenecks,
+    iter_operation_logs,
+    parse_dt,
     compute_station_detail_tables,
     compute_station_metrics,
+    to_int,
 )
 from app.config import (
     BASE_DIR,
@@ -35,6 +39,7 @@ from app.storage import CSVStorage, StorageError
 app = FastAPI(title="Manufacturing WO Tracker", version="0.2.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
 storage = CSVStorage(data_dir=BASE_DIR / "data")
+app.mount("/assets", StaticFiles(directory=str(BASE_DIR / "data")), name="assets")
 
 
 @app.on_event("startup")
@@ -117,6 +122,29 @@ def _errors_by_field(exc: ValidationError) -> dict[str, list[str]]:
     return errors
 
 
+def _precedence_activities() -> list[str]:
+    precedence_file = BASE_DIR / "data" / "Precedence and Suceedance.csv"
+    if not precedence_file.exists() or precedence_file.stat().st_size == 0:
+        return []
+
+    activities: list[str] = []
+    seen: set[str] = set()
+    with precedence_file.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle)
+        for row in reader:
+            if not row:
+                continue
+            name = (row[0] or "").strip()
+            if not name:
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            activities.append(name)
+    return activities
+
+
 def _build_form_context(
     request: Request,
     station_id: str,
@@ -136,7 +164,8 @@ def _build_form_context(
 
     work_orders = storage.get_work_orders(active_only=True)
     activities = storage.get_activities_by_station(station_id)
-    operators = storage.get_operators_by_station(station_id)
+    operators = storage.get_operators()
+    precedence_activities = _precedence_activities()
 
     if values.get("activity_id") == "" and len(activities) == 1:
         values["activity_id"] = activities[0]["activity_id"]
@@ -154,6 +183,7 @@ def _build_form_context(
         "errors": errors or {},
         "form_error": form_error,
         "reason_codes": REASON_CODES,
+        "precedence_activities": precedence_activities,
     }
 
 
@@ -164,6 +194,8 @@ def _default_form_values(station_id: str, wo_id: str = "") -> dict[str, Any]:
         "station_id": station_id,
         "wo_id": wo_id,
         "activity_id": "",
+        "activity_description": "",
+        "activity_description_other": "",
         "operator_id": "",
         "start_time": _format_dt_local(now - timedelta(minutes=START_TIME_OFFSET_MINUTES)),
         "end_time": _format_dt_local(now),
@@ -234,6 +266,7 @@ def _coerce_log_payload_from_values(values: dict[str, Any]) -> tuple[dict[str, A
         "qty_reject": parse_non_negative_int(values.get("qty_reject", "0"), "qty_reject"),
         "num_operators": parse_positive_int(values.get("num_operators", "1"), "num_operators"),
         "reason_code": values.get("reason_code", ""),
+        "activity_description": values.get("activity_description", ""),
         "remarks": values.get("remarks", ""),
         "supervisor_checkin_time": parsed_checkin,
     }
@@ -247,7 +280,7 @@ def _resolve_quicklog_selection(
 ) -> dict[str, Any]:
     activities = storage.get_activities_for_station(station_id)
     primary = storage.get_primary_activity_for_station(station_id)
-    operators = storage.get_operators_for_station(station_id)
+    operators = storage.get_operators()
 
     if primary is not None:
         activity_id = primary["activity_id"]
@@ -259,25 +292,16 @@ def _resolve_quicklog_selection(
         activity_id = selected_activity_id or (activities[0]["activity_id"] if activities else "")
         activity_fixed = False
 
-    if len(operators) == 1:
-        operator_id = operators[0]["operator_id"]
-        operator_fixed = True
-    else:
-        operator_id = selected_operator_id or (operators[0]["operator_id"] if operators else "")
-        operator_fixed = False
+    operator_id = selected_operator_id or (operators[0]["operator_id"] if operators else "")
 
     selected_activity = next((item for item in activities if item["activity_id"] == activity_id), None)
-    selected_operator = next((item for item in operators if item["operator_id"] == operator_id), None)
-
     return {
         "activities": activities,
         "operators": operators,
         "activity_id": activity_id,
         "operator_id": operator_id,
         "activity_fixed": activity_fixed,
-        "operator_fixed": operator_fixed,
         "selected_activity": selected_activity,
-        "selected_operator": selected_operator,
     }
 
 
@@ -313,6 +337,7 @@ def _build_quicklog_context(
         "station": station,
         "work_orders": storage.get_work_orders(active_only=True),
         "recent_logs": storage.get_recent_logs_for_station(station_id, limit=10),
+        "precedence_activities": _precedence_activities(),
         "values": values,
         "errors": errors or {},
         "form_error": form_error,
@@ -326,11 +351,50 @@ def _work_order_status_options() -> list[str]:
     return ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"]
 
 
+def _work_order_plan_catalog() -> tuple[list[dict[str, str]], dict[str, list[dict[str, str]]]]:
+    plan_file = BASE_DIR / "data" / "wo_process_plan.csv"
+    if not plan_file.exists() or plan_file.stat().st_size == 0:
+        return [], {}
+
+    options_by_wo: dict[str, dict[str, str]] = {}
+    steps_by_wo: dict[str, list[dict[str, str]]] = {}
+    with plan_file.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            wo_number = (row.get("wo_number", "") or row.get("wo_id", "") or "").strip()
+            product = (row.get("product", "") or "").strip()
+            step_no = (row.get("step_no", "") or "").strip()
+            activity_id = (row.get("activity_id", "") or "").strip()
+            activity_name = (row.get("activity_name", "") or "").strip()
+            if not wo_number:
+                continue
+            if wo_number not in options_by_wo:
+                options_by_wo[wo_number] = {"wo_id": wo_number, "product": product}
+            steps_by_wo.setdefault(wo_number, []).append(
+                {
+                    "step_no": step_no,
+                    "activity_id": activity_id,
+                    "activity_name": activity_name,
+                }
+            )
+
+    options = sorted(options_by_wo.values(), key=lambda item: item["wo_id"])
+    for wo_number, steps in steps_by_wo.items():
+        steps_by_wo[wo_number] = sorted(
+            steps,
+            key=lambda item: (
+                int(item["step_no"]) if item["step_no"].isdigit() else 999999,
+                item["step_no"],
+                item["activity_id"],
+            ),
+        )
+    return options, steps_by_wo
+
+
 def _default_work_order_form_values() -> dict[str, Any]:
     now = _now_dubai()
     return {
         "wo_id": "",
-        "product": "",
         "planned_qty": "1",
         "status": "Not Started",
         "release_time": _format_dt_local(now),
@@ -363,6 +427,128 @@ def _dashboard_params(date_text: str, window_text: str, stale_text: str) -> tupl
     window_hours = _parse_positive_int(window_text, DEFAULT_WINDOW_HOURS)
     stale_hours = _parse_positive_int(stale_text, DEFAULT_STALE_HOURS)
     return target_date, window_hours, stale_hours, target_date.isoformat()
+
+
+def _employee_tracking_data(target_date: date, selected_operator_id: str = "") -> dict[str, Any]:
+    operator_rows = storage.get_operators()
+    operator_name_map = {row["operator_id"]: row["operator_name"] for row in operator_rows}
+    station_name_map = {row["station_id"]: row["station_name"] for row in storage.get_stations()}
+
+    selected_operator = (selected_operator_id or "").strip()
+    selected_key = selected_operator.lower()
+
+    per_operator: dict[str, dict[str, Any]] = {}
+    recent_logs: list[dict[str, Any]] = []
+    totals = {
+        "logs_count": 0,
+        "qty_good": 0,
+        "qty_rework": 0,
+        "qty_reject": 0,
+        "processing_minutes": 0.0,
+    }
+
+    for log in iter_operation_logs():
+        ts = parse_dt(log.get("timestamp_created", ""))
+        if ts is None or ts.date() != target_date:
+            continue
+
+        operator_id = (log.get("operator_id", "") or "").strip()
+        if not operator_id:
+            continue
+
+        if selected_key and operator_id.lower() != selected_key:
+            continue
+
+        operator_name = operator_name_map.get(operator_id, operator_id)
+        station_id = (log.get("station_id", "") or "").strip()
+        station_name = station_name_map.get(station_id, station_id)
+
+        bucket = per_operator.setdefault(
+            operator_id,
+            {
+                "operator_id": operator_id,
+                "operator_name": operator_name,
+                "logs_count": 0,
+                "qty_good": 0,
+                "qty_rework": 0,
+                "qty_reject": 0,
+                "processing_minutes": 0.0,
+                "_wo_ids": set(),
+                "_station_ids": set(),
+            },
+        )
+
+        qty_good = max(0, to_int(log.get("qty_good", "0")))
+        qty_rework = max(0, to_int(log.get("qty_rework", "0")))
+        qty_reject = max(0, to_int(log.get("qty_reject", "0")))
+
+        bucket["logs_count"] += 1
+        bucket["qty_good"] += qty_good
+        bucket["qty_rework"] += qty_rework
+        bucket["qty_reject"] += qty_reject
+        bucket["_wo_ids"].add((log.get("wo_id", "") or "").strip())
+        if station_id:
+            bucket["_station_ids"].add(station_id)
+
+        totals["logs_count"] += 1
+        totals["qty_good"] += qty_good
+        totals["qty_rework"] += qty_rework
+        totals["qty_reject"] += qty_reject
+
+        start_dt = parse_dt(log.get("start_time", ""))
+        end_dt = parse_dt(log.get("end_time", ""))
+        processing_minutes = 0.0
+        if start_dt is not None and end_dt is not None and end_dt >= start_dt:
+            processing_minutes = (end_dt - start_dt).total_seconds() / 60.0
+            bucket["processing_minutes"] += processing_minutes
+            totals["processing_minutes"] += processing_minutes
+
+        recent_logs.append(
+            {
+                "timestamp_created": log.get("timestamp_created", ""),
+                "wo_id": log.get("wo_id", ""),
+                "station_id": station_id,
+                "station_name": station_name,
+                "activity_id": log.get("activity_id", ""),
+                "operator_id": operator_id,
+                "operator_name": operator_name,
+                "qty_good": qty_good,
+                "qty_rework": qty_rework,
+                "qty_reject": qty_reject,
+                "processing_minutes": processing_minutes,
+            }
+        )
+
+    rows = []
+    for bucket in per_operator.values():
+        rows.append(
+            {
+                "operator_id": bucket["operator_id"],
+                "operator_name": bucket["operator_name"],
+                "logs_count": bucket["logs_count"],
+                "qty_good": bucket["qty_good"],
+                "qty_rework": bucket["qty_rework"],
+                "qty_reject": bucket["qty_reject"],
+                "processing_minutes": bucket["processing_minutes"],
+                "wo_count": len([wo_id for wo_id in bucket["_wo_ids"] if wo_id]),
+                "station_count": len(bucket["_station_ids"]),
+            }
+        )
+
+    rows.sort(key=lambda row: row["operator_id"])
+    recent_logs.sort(
+        key=lambda row: parse_dt(row.get("timestamp_created", "")) or datetime.min.replace(tzinfo=TIMEZONE),
+        reverse=True,
+    )
+
+    return {
+        "date": target_date.isoformat(),
+        "selected_operator_id": selected_operator,
+        "operators": operator_rows,
+        "rows": rows,
+        "recent_logs": recent_logs[:25],
+        "totals": totals,
+    }
 
 
 @app.get("/")
@@ -417,6 +603,7 @@ def work_orders_list(
 
 @app.get("/work-orders/new")
 def work_order_new(request: Request) -> HTMLResponse:
+    wo_plan_options, wo_plan_steps = _work_order_plan_catalog()
     return templates.TemplateResponse(
         "work_order_new.html",
         {
@@ -425,6 +612,8 @@ def work_order_new(request: Request) -> HTMLResponse:
             "errors": {},
             "form_error": None,
             "status_options": _work_order_status_options(),
+            "wo_plan_options": wo_plan_options,
+            "wo_plan_steps": wo_plan_steps,
         },
     )
 
@@ -433,15 +622,17 @@ def work_order_new(request: Request) -> HTMLResponse:
 def work_order_create(
     request: Request,
     wo_id: str = Form(default=""),
-    product: str = Form(default=""),
     planned_qty: str = Form(default="1"),
     status: str = Form(default="Not Started"),
     release_time: str = Form(default=""),
     due_time: str = Form(default=""),
 ) -> HTMLResponse:
+    wo_plan_options, wo_plan_steps = _work_order_plan_catalog()
+    product_by_wo = {item["wo_id"]: item["product"] for item in wo_plan_options}
+    product = product_by_wo.get(wo_id.strip(), "")
+
     values = {
         "wo_id": wo_id,
-        "product": product,
         "planned_qty": planned_qty,
         "status": status,
         "release_time": release_time,
@@ -467,8 +658,14 @@ def work_order_create(
         errors.setdefault("due_time", []).append(str(exc))
         parsed_due = None
 
+    if not wo_plan_options:
+        errors.setdefault("__all__", []).append("WO plan master is missing: data/wo_process_plan.csv")
+
+    if wo_id.strip() not in product_by_wo:
+        errors.setdefault("wo_id", []).append("Select a valid WO Number from dropdown")
+
     payload_data = {
-        "wo_id": wo_id,
+        "wo_id": wo_id.strip(),
         "product": product,
         "planned_qty": planned_qty_int,
         "status": status,
@@ -485,6 +682,8 @@ def work_order_create(
                 "errors": errors,
                 "form_error": None,
                 "status_options": _work_order_status_options(),
+                "wo_plan_options": wo_plan_options,
+                "wo_plan_steps": wo_plan_steps,
             },
             status_code=422,
         )
@@ -500,6 +699,8 @@ def work_order_create(
                 "errors": _errors_by_field(exc),
                 "form_error": None,
                 "status_options": _work_order_status_options(),
+                "wo_plan_options": wo_plan_options,
+                "wo_plan_steps": wo_plan_steps,
             },
             status_code=422,
         )
@@ -510,9 +711,11 @@ def work_order_create(
             {
                 "request": request,
                 "values": values,
-                "errors": {"wo_id": ["wo_id already exists"]},
+                "errors": {"wo_id": ["WO Number already exists"]},
                 "form_error": None,
                 "status_options": _work_order_status_options(),
+                "wo_plan_options": wo_plan_options,
+                "wo_plan_steps": wo_plan_steps,
             },
             status_code=409,
         )
@@ -538,6 +741,8 @@ def work_order_create(
                 "errors": {},
                 "form_error": str(exc),
                 "status_options": _work_order_status_options(),
+                "wo_plan_options": wo_plan_options,
+                "wo_plan_steps": wo_plan_steps,
             },
             status_code=422,
         )
@@ -592,7 +797,6 @@ def work_order_detail(request: Request, wo_id: str) -> HTMLResponse:
             },
             "bottlenecks": bottlenecks,
             "log_rows": log_rows,
-            "stations": storage.get_stations(),
         },
     )
 
@@ -722,6 +926,23 @@ def dashboard_bottlenecks(
     )
 
 
+@app.get("/tracking/employees")
+def employee_tracking(
+    request: Request,
+    date: str = Query(default=""),
+    operator_id: str = Query(default=""),
+) -> HTMLResponse:
+    target_date = _parse_dashboard_date(date)
+    context = _employee_tracking_data(target_date=target_date, selected_operator_id=operator_id)
+    return templates.TemplateResponse(
+        "employee_tracking.html",
+        {
+            "request": request,
+            **context,
+        },
+    )
+
+
 @app.get("/exports/daily")
 def export_daily(date: str = Query(default="")) -> Response:
     target_date = _parse_dashboard_date(date)
@@ -827,6 +1048,8 @@ def station_quicklog_submit(
     supervisor: str = Form(default=""),
     wo_id: str = Form(default=""),
     activity_id: str = Form(default=""),
+    activity_description: str = Form(default=""),
+    activity_description_other: str = Form(default=""),
     operator_id: str = Form(default=""),
     start_time: str = Form(default=""),
     end_time: str = Form(default=""),
@@ -843,6 +1066,8 @@ def station_quicklog_submit(
         "station_id": station_id,
         "wo_id": wo_id,
         "activity_id": activity_id,
+        "activity_description": activity_description,
+        "activity_description_other": activity_description_other,
         "operator_id": operator_id,
         "start_time": start_time,
         "end_time": end_time,
@@ -860,6 +1085,16 @@ def station_quicklog_submit(
     values["operator_id"] = selection["operator_id"]
 
     payload_data, errors = _coerce_log_payload_from_values(values)
+    selected_description = (activity_description or "").strip()
+    selected_description_other = (activity_description_other or "").strip()
+    if selected_description == "__other__":
+        if not selected_description_other:
+            errors.setdefault("activity_description_other", []).append("Please enter activity description")
+        else:
+            selected_description = selected_description_other
+    if selected_description and selected_description != "__other__":
+        payload_data["activity_description"] = selected_description
+
     if errors:
         context = _build_quicklog_context(
             request=request,
@@ -913,21 +1148,9 @@ def new_log_form(
     station_id: str = Query(default=""),
     wo_id: str = Query(default=""),
 ) -> HTMLResponse:
-    if not station_id:
-        return templates.TemplateResponse(
-            "station_select.html",
-            {"request": request, "stations": storage.get_stations()},
-        )
-
-    context = _build_form_context(
-        request=request,
-        station_id=station_id,
-        values=_default_form_values(station_id=station_id, wo_id=wo_id),
-    )
-    if "station" not in context:
-        return templates.TemplateResponse("station_select.html", context, status_code=404)
-
-    return templates.TemplateResponse("new_log.html", context)
+    if station_id:
+        return RedirectResponse(url=f"/stations/{station_id}/quicklog", status_code=303)
+    return RedirectResponse(url="/stations", status_code=303)
 
 
 @app.post("/logs/new")
@@ -937,6 +1160,8 @@ def create_log(
     station_id: str = Form(default=""),
     wo_id: str = Form(default=""),
     activity_id: str = Form(default=""),
+    activity_description: str = Form(default=""),
+    activity_description_other: str = Form(default=""),
     operator_id: str = Form(default=""),
     start_time: str = Form(default=""),
     end_time: str = Form(default=""),
@@ -948,77 +1173,10 @@ def create_log(
     remarks: str = Form(default=""),
     supervisor_checkin_time: str = Form(default=""),
 ) -> HTMLResponse:
-    values = {
-        "supervisor": supervisor,
-        "station_id": station_id,
-        "wo_id": wo_id,
-        "activity_id": activity_id,
-        "operator_id": operator_id,
-        "start_time": start_time,
-        "end_time": end_time,
-        "qty_good": qty_good,
-        "qty_rework": qty_rework,
-        "qty_reject": qty_reject,
-        "num_operators": num_operators,
-        "reason_code": reason_code,
-        "remarks": remarks,
-        "supervisor_checkin_time": supervisor_checkin_time,
-    }
-
-    payload_data, errors = _coerce_log_payload_from_values(values)
-
-    if errors:
-        context = _build_form_context(request, station_id=station_id, values=values, errors=errors)
-        if "station" not in context:
-            return templates.TemplateResponse("station_select.html", context, status_code=404)
-        return templates.TemplateResponse("new_log.html", context, status_code=422)
-
-    try:
-        payload = OperationLogCreate.model_validate(payload_data)
-    except ValidationError as exc:
-        context = _build_form_context(
-            request,
-            station_id=station_id,
-            values=values,
-            errors=_errors_by_field(exc),
-        )
-        if "station" not in context:
-            return templates.TemplateResponse("station_select.html", context, status_code=404)
-        return templates.TemplateResponse("new_log.html", context, status_code=422)
-
-    try:
-        row = storage.append_operation_log(payload.model_dump())
-    except StorageError as exc:
-        context = _build_form_context(
-            request,
-            station_id=station_id,
-            values=values,
-            form_error=str(exc),
-        )
-        if "station" not in context:
-            return templates.TemplateResponse("station_select.html", context, status_code=404)
-        return templates.TemplateResponse("new_log.html", context, status_code=422)
-
-    station_map = {item["station_id"]: item["station_name"] for item in storage.get_stations()}
-    activity_map = {
-        item["activity_id"]: item["activity_name"]
-        for item in storage.read_master_table("activities")
-    }
-    operator_map = {
-        item["operator_id"]: item["operator_name"]
-        for item in storage.read_master_table("operators")
-    }
-
-    return templates.TemplateResponse(
-        "log_success.html",
-        {
-            "request": request,
-            "log": row,
-            "station_name": station_map.get(row["station_id"], row["station_id"]),
-            "activity_name": activity_map.get(row["activity_id"], row["activity_id"]),
-            "operator_name": operator_map.get(row["operator_id"], row["operator_id"]),
-        },
-    )
+    target_station_id = (station_id or "").strip()
+    if target_station_id:
+        return RedirectResponse(url=f"/stations/{target_station_id}/quicklog", status_code=303)
+    return RedirectResponse(url="/stations", status_code=303)
 
 
 @app.get("/api/options")

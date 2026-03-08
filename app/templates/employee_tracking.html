@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Work Tracking{% endblock %}
+
+{% block content %}
+<section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold">Employee Work Tracking</h1>
+      <p class="text-slate-600 mt-1">Daily tracking by operator, with quantity and processing summary.</p>
+    </div>
+  </div>
+
+  <form method="get" action="/tracking/employees" class="mt-5 grid md:grid-cols-3 gap-3 items-end">
+    <label class="block">
+      <span class="text-sm text-slate-700">Date</span>
+      <input type="date" name="date" value="{{ date }}" class="mt-1 w-full rounded-md border-slate-300 p-2" />
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-700">Operator</span>
+      <select name="operator_id" class="mt-1 w-full rounded-md border-slate-300 p-2">
+        <option value="">All operators</option>
+        {% for operator in operators %}
+        <option value="{{ operator.operator_id }}" {% if selected_operator_id == operator.operator_id %}selected{% endif %}>
+          {{ operator.operator_id }} - {{ operator.operator_name }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="rounded-md border border-slate-300 p-2">Apply</button>
+  </form>
+
+  <div class="mt-5 grid md:grid-cols-4 gap-3">
+    <div class="rounded-lg border border-slate-200 p-3">Logs: <strong>{{ totals.logs_count }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Good: <strong>{{ totals.qty_good }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Rework: <strong>{{ totals.qty_rework }}</strong></div>
+    <div class="rounded-lg border border-slate-200 p-3">Reject: <strong>{{ totals.qty_reject }}</strong></div>
+  </div>
+
+  <div class="mt-6 overflow-x-auto">
+    <h2 class="text-lg font-semibold">Employee Summary</h2>
+    <table class="w-full text-sm border-collapse mt-3">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">Operator</th>
+          <th class="py-2">Logs</th>
+          <th class="py-2">WO Count</th>
+          <th class="py-2">Stations</th>
+          <th class="py-2">Good</th>
+          <th class="py-2">Rework</th>
+          <th class="py-2">Reject</th>
+          <th class="py-2">Processing Min</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if rows %}
+          {% for row in rows %}
+          <tr class="border-b border-slate-100">
+            <td class="py-2">{{ row.operator_id }} - {{ row.operator_name }}</td>
+            <td class="py-2">{{ row.logs_count }}</td>
+            <td class="py-2">{{ row.wo_count }}</td>
+            <td class="py-2">{{ row.station_count }}</td>
+            <td class="py-2">{{ row.qty_good }}</td>
+            <td class="py-2">{{ row.qty_rework }}</td>
+            <td class="py-2">{{ row.qty_reject }}</td>
+            <td class="py-2">{{ '%.2f'|format(row.processing_minutes) }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="8" class="py-4 text-slate-500">No employee logs found for selected filters.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt-8 overflow-x-auto">
+    <h2 class="text-lg font-semibold">Recent Logs (Top 25)</h2>
+    <table class="w-full text-sm border-collapse mt-3">
+      <thead>
+        <tr class="border-b border-slate-200 text-left">
+          <th class="py-2">Created</th>
+          <th class="py-2">Operator</th>
+          <th class="py-2">WO</th>
+          <th class="py-2">Station</th>
+          <th class="py-2">Activity</th>
+          <th class="py-2">Good</th>
+          <th class="py-2">Rework</th>
+          <th class="py-2">Reject</th>
+          <th class="py-2">Processing Min</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if recent_logs %}
+          {% for log in recent_logs %}
+          <tr class="border-b border-slate-100">
+            <td class="py-2">{{ log.timestamp_created }}</td>
+            <td class="py-2">{{ log.operator_id }} - {{ log.operator_name }}</td>
+            <td class="py-2">{{ log.wo_id }}</td>
+            <td class="py-2">{{ log.station_id }} - {{ log.station_name }}</td>
+            <td class="py-2">{{ log.activity_id }}</td>
+            <td class="py-2">{{ log.qty_good }}</td>
+            <td class="py-2">{{ log.qty_rework }}</td>
+            <td class="py-2">{{ log.qty_reject }}</td>
+            <td class="py-2">{{ '%.2f'|format(log.processing_minutes) }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="9" class="py-4 text-slate-500">No logs available.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

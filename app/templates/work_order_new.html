@@ -13,15 +13,20 @@
 
   <form method="post" action="/work-orders/new" class="mt-6 space-y-4">
     <div>
-      <label class="block text-sm font-medium text-slate-700">WO ID</label>
-      <input name="wo_id" value="{{ values.wo_id }}" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" required />
+      <label class="block text-sm font-medium text-slate-700">WO Number</label>
+      <select id="wo-number-select" name="wo_id" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" required>
+        <option value="">Select WO Number</option>
+        {% for item in wo_plan_options %}
+        <option value="{{ item.wo_id }}" {% if values.wo_id == item.wo_id %}selected{% endif %}>{{ item.wo_id }} - {{ item.product }}</option>
+        {% endfor %}
+      </select>
       {% for err in errors.get('wo_id', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-slate-700">Product</label>
-      <input name="product" value="{{ values.product }}" class="mt-1 w-full rounded-md border-slate-300 p-3 text-lg" required />
-      {% for err in errors.get('product', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
+    <div class="rounded-md border border-slate-200 p-3">
+      <h2 class="text-sm font-medium text-slate-700">Planned Activities</h2>
+      <ul id="wo-activities-list" class="mt-2 space-y-1 text-sm text-slate-700"></ul>
+      <p id="wo-activities-empty" class="mt-2 text-sm text-slate-500">Select a WO Number to view activities.</p>
     </div>
 
     <div class="grid md:grid-cols-2 gap-4">
@@ -62,4 +67,40 @@
     </div>
   </form>
 </section>
+<script>
+  (function () {
+    const woSelect = document.getElementById("wo-number-select");
+    const activitiesList = document.getElementById("wo-activities-list");
+    const emptyMessage = document.getElementById("wo-activities-empty");
+    const planSteps = {{ wo_plan_steps | tojson }};
+    if (!woSelect || !activitiesList || !emptyMessage) return;
+
+    const renderActivities = () => {
+      const woNumber = woSelect.value;
+      const steps = planSteps[woNumber] || [];
+      activitiesList.innerHTML = "";
+
+      if (!steps.length) {
+        emptyMessage.textContent = woNumber
+          ? "No activities defined for selected WO Number."
+          : "Select a WO Number to view activities.";
+        emptyMessage.classList.remove("hidden");
+        return;
+      }
+
+      for (const step of steps) {
+        const li = document.createElement("li");
+        const stepNo = step.step_no ? `${step.step_no}. ` : "";
+        const activityId = step.activity_id || "";
+        const activityName = step.activity_name || "";
+        li.textContent = `${stepNo}${activityId} - ${activityName}`;
+        activitiesList.appendChild(li);
+      }
+      emptyMessage.classList.add("hidden");
+    };
+
+    woSelect.addEventListener("change", renderActivities);
+    renderActivities();
+  })();
+</script>
 {% endblock %}

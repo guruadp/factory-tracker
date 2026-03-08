@@ -1,16 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}System Status{% endblock %}
+{% block title %}NAFFCO Fabrication Factory Tracker Dashboard{% endblock %}
 
 {% block content %}
 <section class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
-  <h1 class="text-2xl font-semibold">System OK</h1>
-  <p class="text-slate-600 mt-1">CSV storage initialized and available.</p>
-  <div class="mt-4">
-    <a href="/logs/new" class="inline-flex rounded-md bg-slate-900 px-4 py-2 text-white">New Operation Log</a>
-    <a href="/stations" class="inline-flex rounded-md border border-slate-300 px-4 py-2 ml-2">Quick Log</a>
-    <a href="/work-orders" class="inline-flex rounded-md border border-slate-300 px-4 py-2 ml-2">Work Orders</a>
-    <a href="/dashboard/stations" class="inline-flex rounded-md border border-slate-300 px-4 py-2 ml-2">Dashboards</a>
+  <div class="flex items-center gap-4">
+    <img
+      src="/assets/NAFFCO_Logo_(Transparent).png"
+      alt="NAFFCO Logo"
+      class="h-12 w-auto object-contain"
+    />
+    <div>
+      <h1 class="text-2xl font-semibold">NAFFCO Fabrication Factory Tracker</h1>
+      <p class="text-slate-600 mt-1">This project is for NAFFCO.</p>
+    </div>
   </div>
 
   <div class="mt-6 grid sm:grid-cols-2 gap-3 text-sm">

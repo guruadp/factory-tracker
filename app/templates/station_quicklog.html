@@ -41,13 +41,30 @@
     </div>
     {% endif %}
 
-    {% if operator_fixed %}
-    <input type="hidden" name="operator_id" value="{{ operator_id }}" />
     <div>
-      <label class="block text-sm font-medium text-slate-700">Operator</label>
-      <div class="mt-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-lg">{{ selected_operator.operator_id }} - {{ selected_operator.operator_name }}</div>
+      <label class="block text-sm font-medium text-slate-700">Activity Description</label>
+      <select id="activity-description-select" name="activity_description" class="mt-1 w-full rounded-md border-slate-300 text-lg p-3">
+        <option value="">Select activity description</option>
+        {% for item in precedence_activities %}
+        <option value="{{ item }}" {% if values.activity_description == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+        <option value="__other__" {% if values.activity_description == '__other__' %}selected{% endif %}>Other</option>
+      </select>
+      {% for err in errors.get('activity_description', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
     </div>
-    {% else %}
+
+    <div id="activity-description-other-wrap" style="display: none;">
+      <label class="block text-sm font-medium text-slate-700">Other Activity Description</label>
+      <input
+        id="activity-description-other-input"
+        name="activity_description_other"
+        value="{{ values.activity_description_other }}"
+        class="mt-1 w-full rounded-md border-slate-300 text-lg p-3"
+        placeholder="Enter activity description"
+      />
+      {% for err in errors.get('activity_description_other', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
+    </div>
+
     <div>
       <label class="block text-sm font-medium text-slate-700">Operator</label>
       <select name="operator_id" class="mt-1 w-full rounded-md border-slate-300 text-lg p-3">
@@ -57,7 +74,6 @@
       </select>
       {% for err in errors.get('operator_id', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
     </div>
-    {% endif %}
 
     <div>
       <label class="block text-sm font-medium text-slate-700">Supervisor</label>
@@ -67,10 +83,10 @@
 
     <div>
       <label class="block text-sm font-medium text-slate-700">Work Order</label>
-      <input name="wo_id" list="wo_list" value="{{ values.wo_id }}" class="mt-1 w-full rounded-md border-slate-300 text-lg p-3" required />
+      <input id="wo-id-input" name="wo_id" list="wo_list" value="{{ values.wo_id }}" class="mt-1 w-full rounded-md border-slate-300 text-lg p-3" required />
       <datalist id="wo_list">
         {% for wo in work_orders %}
-        <option value="{{ wo.wo_id }}">{{ wo.wo_id }} - {{ wo.product }}</option>
+        <option value="{{ wo.wo_id }}" data-release-time="{{ wo.release_time.isoformat() if wo.release_time else '' }}">{{ wo.wo_id }} - {{ wo.product }}</option>
         {% endfor %}
       </datalist>
       {% for err in errors.get('wo_id', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
@@ -79,7 +95,7 @@
     <div class="grid md:grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-medium text-slate-700">Start Time</label>
-        <input type="datetime-local" name="start_time" value="{{ values.start_time }}" class="mt-1 w-full rounded-md border-slate-300 text-lg p-3" required />
+        <input id="start-time-input" type="datetime-local" name="start_time" value="{{ values.start_time }}" class="mt-1 w-full rounded-md border-slate-300 text-lg p-3" required />
         {% for err in errors.get('start_time', []) %}<p class="mt-1 text-sm text-red-600">{{ err }}</p>{% endfor %}
       </div>
       <div>
@@ -163,4 +179,52 @@
   <p class="mt-3 text-slate-600">No logs for this station yet.</p>
   {% endif %}
 </section>
+
+<script>
+  (function () {
+    const woInput = document.getElementById("wo-id-input");
+    const startInput = document.getElementById("start-time-input");
+    const options = document.querySelectorAll("#wo_list option");
+    const activityDescriptionSelect = document.getElementById("activity-description-select");
+    const activityDescriptionOtherWrap = document.getElementById("activity-description-other-wrap");
+    const activityDescriptionOtherInput = document.getElementById("activity-description-other-input");
+
+    const toLocalDateTimeValue = (isoText) => {
+      const dt = new Date(isoText);
+      if (Number.isNaN(dt.getTime())) return "";
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    };
+
+    const applyStartFromWorkOrder = () => {
+      const selected = Array.from(options).find((opt) => opt.value === woInput.value);
+      if (!selected) return;
+      const release = selected.getAttribute("data-release-time") || "";
+      const formatted = toLocalDateTimeValue(release);
+      if (formatted) {
+        startInput.value = formatted;
+      }
+    };
+
+    const syncActivityDescriptionOther = () => {
+      if (!activityDescriptionSelect || !activityDescriptionOtherWrap || !activityDescriptionOtherInput) return;
+      const show = activityDescriptionSelect.value === "__other__";
+      activityDescriptionOtherWrap.style.display = show ? "block" : "none";
+      activityDescriptionOtherInput.required = show;
+      if (!show) {
+        activityDescriptionOtherInput.value = "";
+      }
+    };
+
+    if (woInput && startInput && options.length) {
+      woInput.addEventListener("change", applyStartFromWorkOrder);
+      woInput.addEventListener("input", applyStartFromWorkOrder);
+    }
+
+    if (activityDescriptionSelect) {
+      syncActivityDescriptionOther();
+      activityDescriptionSelect.addEventListener("change", syncActivityDescriptionOther);
+    }
+  })();
+</script>
 {% endblock %}
