@@ -5,7 +5,9 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Generator, Iterable
 
-from app.config import OPERATION_LOGS_FILE, TIMEZONE
+from app.config import DATABASE_URL, OPERATION_LOGS_FILE, TIMEZONE
+from app.db import session_scope
+from app.db_models import OperationLog
 
 
 def parse_dt(value: str | None) -> datetime | None:
@@ -29,6 +31,32 @@ def to_int(value: str | None) -> int:
 
 
 def iter_operation_logs(path: Path = OPERATION_LOGS_FILE) -> Generator[dict[str, str], None, None]:
+    if DATABASE_URL:
+        with session_scope() as session:
+            rows = session.query(OperationLog).order_by(OperationLog.timestamp_created.asc()).all()
+            for row in rows:
+                yield {
+                    "log_id": row.log_id,
+                    "timestamp_created": row.timestamp_created.astimezone(TIMEZONE).isoformat(),
+                    "supervisor": row.supervisor,
+                    "station_id": row.station_id,
+                    "wo_id": row.wo_id,
+                    "activity_id": row.activity_id,
+                    "operator_id": row.operator_id,
+                    "start_time": row.start_time.astimezone(TIMEZONE).isoformat(),
+                    "end_time": row.end_time.astimezone(TIMEZONE).isoformat(),
+                    "qty_good": str(row.qty_good),
+                    "qty_rework": str(row.qty_rework),
+                    "qty_reject": str(row.qty_reject),
+                    "num_operators": str(row.num_operators),
+                    "reason_code": row.reason_code or "",
+                    "activity_description": row.activity_description or "",
+                    "remarks": row.remarks or "",
+                    "supervisor_checkin_time": row.supervisor_checkin_time.astimezone(TIMEZONE).isoformat(),
+                    "supervisor_checkout_time": row.supervisor_checkout_time.astimezone(TIMEZONE).isoformat(),
+                }
+        return
+
     if not path.exists() or path.stat().st_size == 0:
         return
     with path.open("r", newline="", encoding="utf-8") as handle:

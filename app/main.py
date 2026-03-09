@@ -26,25 +26,31 @@ from app.analytics import (
 )
 from app.config import (
     BASE_DIR,
+    DATABASE_URL,
     DEFAULT_STALE_HOURS,
     DEFAULT_WINDOW_HOURS,
     REASON_CODES,
     START_TIME_OFFSET_MINUTES,
     TIMEZONE,
 )
+from app.db import ensure_database_schema, is_database_enabled
+from app.db_storage import DBStorage
 from app.init_data import initialize_data_files
 from app.models import OperationLogCreate, WorkOrderCreate
 from app.storage import CSVStorage, StorageError
 
 app = FastAPI(title="Manufacturing WO Tracker", version="0.2.0")
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
-storage = CSVStorage(data_dir=BASE_DIR / "data")
+storage = DBStorage() if DATABASE_URL else CSVStorage(data_dir=BASE_DIR / "data")
 app.mount("/assets", StaticFiles(directory=str(BASE_DIR / "data")), name="assets")
 
 
 @app.on_event("startup")
 def startup_event() -> None:
-    initialize_data_files()
+    if is_database_enabled():
+        ensure_database_schema()
+    else:
+        initialize_data_files()
 
 
 @app.get("/health")
