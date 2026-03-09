@@ -1,6 +1,7 @@
 # Planning Dashboard (Phase-0)
 
 Lightweight FastAPI app for manufacturing operation logs with CSV storage.
+Supports PostgreSQL when `DATABASE_URL` is configured.
 
 ## Stack
 
@@ -19,6 +20,19 @@ uvicorn app.main:app --reload
 ```
 
 Open: http://127.0.0.1:8000/stations
+
+## PostgreSQL Setup
+
+```bash
+export DATABASE_URL='postgresql+psycopg://factory:factory123@localhost:5432/factory_tracker'
+uvicorn app.main:app --reload
+```
+
+Optional one-time import from existing CSV files:
+
+```bash
+python3 scripts/import_csv_to_postgres.py
+```
 
 ## Data Files
 
