@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -27,7 +26,6 @@ OPERATORS_FILE = DATA_DIR / "operators.csv"
 WORK_ORDERS_FILE = DATA_DIR / "work_orders.csv"
 OPERATION_LOGS_FILE = DATA_DIR / "operation_logs.csv"
 OPERATION_LOGS_LOCK_FILE = DATA_DIR / "operation_logs.csv.lock"
-DATABASE_URL = (os.getenv("DATABASE_URL", "") or "").strip()
 
 MASTER_TABLE_FILES = {
     "stations": STATIONS_FILE,
